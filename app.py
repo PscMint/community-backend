@@ -148,12 +148,12 @@ def createSim(sim_pars,epi_pars,int_pars):
     )
 
     sim = cv.Sim(pars=pars, location = 'China')
-
-    # 设置omicron病毒引入
-    # Adding Omicron,设置相对于初始病毒的传播率
-    omicron = cv.variant('p1', days=sim.day(sim_pars['variant_start_day']), n_imports=sim_pars['n_import'])
-    omicron.p['rel_beta'] = epi_pars['rel_beta']#0.0208178 / 0.016
-    sim['variants'] += [omicron]
+    if sim_pars['n_import']:
+        # 设置omicron病毒引入
+        # Adding Omicron,设置相对于初始病毒的传播率
+        omicron = cv.variant('p1', days=sim.day(sim_pars['variant_start_day']), n_imports=sim_pars['n_import'])
+        omicron.p['rel_beta'] = epi_pars['rel_beta']#0.0208178 / 0.016
+        sim['variants'] += [omicron]
 
 
     # 添加防疫措施
