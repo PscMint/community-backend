@@ -97,17 +97,18 @@ def create():
     db.session.add(user2)
     db.session.commit()
 # covasim 方法使用
-sim_pars = {
-    'start_day': '2022-01-01',
-    'end_day': '2022-01-31',
-    'pop_infected': 10,
-    'pop_size': 5000,
-    'pop_type': 'hybrid',
-    'contacts': {'h': 3, 'c': 36, 's': 50, 'w': 20},
-    'variant_start_day': '2022-01-04',
-    'n_import': 3
-
-}
+# 关键的三组参数字典，留给调试的时候使用
+# sim_pars = {
+#     'start_day': '2022-01-01',
+#     'end_day': '2022-01-31',
+#     'pop_infected': 10,
+#     'pop_size': 5000,
+#     'pop_type': 'hybrid',
+#     'contacts': {'h': 3, 'c': 36, 's': 50, 'w': 20},
+#     'variant_start_day': '2022-01-04',
+#     'n_import': 3
+#
+# }
 epi_pars = {
     'rel_beta': 0.0208178 / 0.016
 
@@ -168,14 +169,85 @@ def createSim(sim_pars,epi_pars,int_pars):
             intervention.do_plot = False
 
     return sim
-# 返回模拟的json结果
-@app.route('/sim_res')
-def getSimRes():
-    sim = createSim(sim_pars=sim_pars,epi_pars=epi_pars,int_pars=int_pars)
 
+#@app.route('/sim_res') # 返回模拟的json结果,留给调试的时候使用
+# def getSimRes():
+#     sim = createSim(sim_pars=sim_pars,epi_pars=epi_pars,int_pars=int_pars)
+#
+#     sim.run()
+#     print(sim.results['cum_infections'])
+#     return{
+#         'code': 200,
+#         'data': {
+#             'cumData': [
+#                 {
+#                     'name': 'cum_infection',
+#                     'color': sim.results['cum_infections'].color,
+#                     'values': sim.results['cum_infections'].values.tolist()
+#                 },
+#                 {
+#
+#                         'name': 'cum_severe',
+#                         'color': sim.results['cum_severe'].color,
+#                         'values': sim.results['cum_severe'].values.tolist()
+#
+#                 },
+#                 {
+#
+#                     'name': 'cum_critical',
+#                     'color': sim.results['cum_critical'].color,
+#                     'values': sim.results['cum_critical'].values.tolist()
+#
+#                 },
+#                 {
+#
+#                     'name': 'cum_deaths',
+#                     'color': sim.results['cum_deaths'].color,
+#                     'values': sim.results['cum_deaths'].values.tolist()
+#
+#                 }
+#             ],
+#             'newData': [
+#                 {
+#                     'name': 'new_infection',
+#                     'color': sim.results['new_infections'].color,
+#                     'values': sim.results['new_infections'].values.tolist()
+#                 },
+#                 {
+#
+#                     'name': 'new_severe',
+#                     'color': sim.results['new_severe'].color,
+#                     'values': sim.results['new_severe'].values.tolist()
+#
+#                 },
+#                 {
+#
+#                     'name': 'new_critical',
+#                     'color': sim.results['new_critical'].color,
+#                     'values': sim.results['new_critical'].values.tolist()
+#
+#                 },
+#                 {
+#
+#                     'name': 'new_deaths',
+#                     'color': sim.results['new_deaths'].color,
+#                     'values': sim.results['new_deaths'].values.tolist()
+#
+#                 }
+#             ],
+#             'date': sim.results.date.tolist()
+#         }
+#     }
+
+
+
+@app.route('/run_sim',methods=['POST']) # 接收参数，运行run，并且返回模拟的结果
+def runSim():
+    form = request.json
+    sim_pars = form.get('sim_pars')
+    sim = createSim(sim_pars=sim_pars, epi_pars=epi_pars, int_pars=int_pars)
     sim.run()
-    print(sim.results['cum_infections'])
-    return{
+    return {
         'code': 200,
         'data': {
             'cumData': [
@@ -186,9 +258,9 @@ def getSimRes():
                 },
                 {
 
-                        'name': 'cum_severe',
-                        'color': sim.results['cum_severe'].color,
-                        'values': sim.results['cum_severe'].values.tolist()
+                    'name': 'cum_severe',
+                    'color': sim.results['cum_severe'].color,
+                    'values': sim.results['cum_severe'].values.tolist()
 
                 },
                 {
