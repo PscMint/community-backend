@@ -110,7 +110,8 @@ def create():
 #
 # }
 epi_pars = {
-    'rel_beta': 0.0208178 / 0.016
+    'rel_beta': 0.0208178 / 0.016,
+    'beta': 0.0208178
 
 }
 int_pars = {
@@ -124,13 +125,14 @@ int_pars = {
 }
 # 根据表单传入的参数创建sim
 def createSim(sim_pars,epi_pars,int_pars):
-    beta = epi_pars['rel_beta']
+    if(epi_pars['beta']):
+        beta = epi_pars['beta']
     pop_infected = sim_pars['pop_infected']
 
     start_day = sim_pars['start_day']
     end_day = sim_pars['end_day']
 
-    # Set the parameters
+    # Set the sim parameters
     pop_size = sim_pars['pop_size']
 
     pop_type = sim_pars['pop_type']
@@ -149,7 +151,14 @@ def createSim(sim_pars,epi_pars,int_pars):
     )
 
     sim = cv.Sim(pars=pars, location = 'China')
-    if sim_pars['n_import']:
+    # 设定相对流行病学参数
+    if epi_pars['rel_beta']:
+        sim.pars['rel_beta'] = epi_pars['rel_beta']
+    sim.pars['rel_symp_prob'] = epi_pars['symp']
+    sim.pars['rel_severe_prob'] = epi_pars['severe']
+    sim.pars['rel_crit_prob'] = epi_pars['crit']
+    sim.pars['rel_death_prob'] = epi_pars['death']
+    if sim_pars['n_import'] != 0:
         # 设置omicron病毒引入
         # Adding Omicron,设置相对于初始病毒的传播率
         omicron = cv.variant('p1', days=sim.day(sim_pars['variant_start_day']), n_imports=sim_pars['n_import'])
@@ -245,6 +254,7 @@ def createSim(sim_pars,epi_pars,int_pars):
 def runSim():
     form = request.json
     sim_pars = form.get('sim_pars')
+    epi_pars = form.get('epi_pars')
     sim = createSim(sim_pars=sim_pars, epi_pars=epi_pars, int_pars=int_pars)
     sim.run()
     return {
