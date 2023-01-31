@@ -5,6 +5,7 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 import covasim as cv
 import sciris as sc
+import os
 
 app = Flask(__name__)
 # 项目配置，类似于热刷新模式
@@ -125,14 +126,15 @@ int_pars = {
 }
 # 根据表单传入的参数创建sim
 def createSim(sim_pars,epi_pars,int_pars):
-    if(epi_pars['beta']):
-        beta = epi_pars['beta']
+
+    # 将传来的参数用于sim模拟的参数解析出来，传给sim
+
     pop_infected = sim_pars['pop_infected']
 
     start_day = sim_pars['start_day']
     end_day = sim_pars['end_day']
 
-    # Set the sim parameters
+
     pop_size = sim_pars['pop_size']
 
     pop_type = sim_pars['pop_type']
@@ -145,37 +147,97 @@ def createSim(sim_pars,epi_pars,int_pars):
         pop_type=pop_type,
         start_day=start_day,
         end_day=end_day,
-        beta=beta,
         contacts=contacts,
         verbose=0,
     )
 
     sim = cv.Sim(pars=pars, location = 'China')
+
     # 设定相对流行病学参数
-    if epi_pars['rel_beta']:
-        sim.pars['rel_beta'] = epi_pars['rel_beta']
-    sim.pars['rel_symp_prob'] = epi_pars['symp']
-    sim.pars['rel_severe_prob'] = epi_pars['severe']
-    sim.pars['rel_crit_prob'] = epi_pars['crit']
-    sim.pars['rel_death_prob'] = epi_pars['death']
-    if sim_pars['n_import'] != 0:
-        # 设置omicron病毒引入
-        # Adding Omicron,设置相对于初始病毒的传播率
-        omicron = cv.variant('p1', days=sim.day(sim_pars['variant_start_day']), n_imports=sim_pars['n_import'])
-        omicron.p['rel_beta'] = epi_pars['rel_beta']#0.0208178 / 0.016
-        sim['variants'] += [omicron]
+
+    # 用户选择模式设定病毒参数
+    regions = {
+        # 'n_imports': {
+        #     'Default': 0,
+        #     'Optimistic': 0,
+        #     'Pessimistic': 10,
+        # },
+        'beta': {
+            'Default': 0.015,
+            'Optimistic': 0.010,
+            'Pessimistic': 0.02,
+        },
+        'rel_symp_prob': {
+            'Default': 1.0,
+            'Optimistic': 1.2,
+            'Pessimistic': 0.5,
+        },
+        'rel_severe_prob': {
+            'Default': 1.0,
+            'Optimistic': 0.3,
+            'Pessimistic': 3.0,
+        },
+        'rel_crit_prob': {
+            'Default': 1.0,
+            'Optimistic': 0.7,
+            'Pessimistic': 5.0,
+        },
+        'rel_death_prob': {
+            'Default': 1.0,
+            'Optimistic': 0.5,
+            'Pessimistic': 2.0,
+        },
+    }
+
+    # 用户选择了直接设定相对传播数值
+    if epi_pars['isUseful']:
+        sim.pars['beta'] = epi_pars['beta']
+        sim.pars['rel_symp_prob'] = epi_pars['symp']
+        sim.pars['rel_severe_prob'] = epi_pars['severe']
+        sim.pars['rel_crit_prob'] = epi_pars['crit']
+        sim.pars['rel_death_prob'] = epi_pars['death']
+    else:
+        # 用户选择给悲观或乐观模式赋值
+        if sim_pars['epi_degree'] == 'optimistic':
+            for key, value in regions.items():
+                if key == 'beta':
+                    sim.pars[key] = value['Optimistic']
+                else:
+                    sim.pars[key] = sim.pars[key]*value['Optimistic']
+        elif sim_pars['epi_degree'] == 'pessimistic':
+            for key, value in regions.items():
+                if key == 'beta':
+                    sim.pars[key] = value['Pessimistic']
+                else:
+                    sim.pars[key] = sim.pars[key] * value['Pessimistic']
+        elif sim_pars['epi_degree'] == 'default':
+            sim.pars['beta'] = regions['beta']['Default']
+    # elif epi_pars['rel_beta']:
+    #     sim.pars['rel_beta'] = epi_pars['rel_beta']
+
+    # if sim_pars['n_import'] != 0:
+    #     # 设置omicron病毒引入
+    #     # Adding Omicron,设置相对于初始病毒的传播率
+    #     omicron = cv.variant('p1', days=sim.day(sim_pars['variant_start_day']), n_imports=sim_pars['n_import'])
+    #     omicron.p['rel_beta'] = epi_pars['rel_beta']#0.0208178 / 0.016
+    #     sim['variants'] += [omicron]
 
 
     # 添加防疫措施
-    if int_pars:
-        interventions = []
+    interventions = []
+    if sim_pars['interv_degree'] == 'positive':
+        interventions.append(cv.change_beta(days=[start_day], changes=[0.8], layers='c'))
+        interventions.append(cv.change_beta(days=[start_day], changes=[0.8], layers='s'))
+        interventions.append(cv.change_beta(days=[start_day], changes=[0.8], layers='w'))
+
+    elif int_pars:
         if int_pars['mask_wearing']:
             for item in int_pars['mask_wearing']:
                 interv = cv.change_beta(days=item['days'], changes=item['value'], layers=item['layer'])
                 interventions.append(interv)
-        sim.update_pars(interventions=interventions)
-        for intervention in sim['interventions']:
-            intervention.do_plot = False
+    sim.update_pars(interventions=interventions)
+    for intervention in sim['interventions']:
+         intervention.do_plot = False
 
     return sim
 
@@ -249,7 +311,22 @@ def createSim(sim_pars,epi_pars,int_pars):
 #     }
 
 
+@app.route('/upload',methods=['POST'])
+def handleUpload():
+    file = request.files.get("file")
+    if file is None:  # 表示没有发送文件
+        return {
+            'msg': "文件上传失败"
+        }
+    # 修改为固定的名字方便网络读取
+    file_name = 'agentsInfo.xlsx'
+    file.save(os.path.dirname(__file__) + '/file/' + file_name)  # 保存文件
 
+
+    return {
+        'code': 200,
+        'data': '文件上传成功'
+    }
 @app.route('/run_sim',methods=['POST']) # 接收参数，运行run，并且返回模拟的结果
 def runSim():
     form = request.json
@@ -265,6 +342,11 @@ def runSim():
                     'name': 'cum_infection',
                     'color': sim.results['cum_infections'].color,
                     'values': sim.results['cum_infections'].values.tolist()
+                },
+                {
+                    'name': 'cum_recoveries',
+                    'color': sim.results['cum_recoveries'].color,
+                    'values': sim.results['cum_recoveries'].values.tolist()
                 },
                 {
 
@@ -295,6 +377,11 @@ def runSim():
                     'values': sim.results['new_infections'].values.tolist()
                 },
                 {
+                    'name': 'new_recoveries',
+                    'color': sim.results['new_recoveries'].color,
+                    'values': sim.results['new_recoveries'].values.tolist()
+                },
+                {
 
                     'name': 'new_severe',
                     'color': sim.results['new_severe'].color,
@@ -316,7 +403,16 @@ def runSim():
 
                 }
             ],
-            'date': sim.results.date.tolist()
+            'date': sim.results.date.tolist(),
+            'panelData': {
+                'cum_infections': sim.results['cum_infections'][-1],
+                'cum_severe': sim.results['cum_severe'][-1],
+                'cum_critical': sim.results['cum_critical'][-1],
+                'cum_recoveries': sim.results['cum_recoveries'][-1],
+                'cum_deaths': sim.results['cum_deaths'][-1],
+            },
+
+
         }
     }
 
