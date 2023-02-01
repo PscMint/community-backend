@@ -151,7 +151,7 @@ def createSim(sim_pars,epi_pars,int_pars):
         verbose=0,
     )
 
-    sim = cv.Sim(pars=pars, location = 'China')
+    sim = cv.Sim(pars=pars, location = sim_pars['old_degree'])
 
     # 设定相对流行病学参数
 
