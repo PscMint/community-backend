@@ -231,9 +231,9 @@ def createSim(sim_pars,epi_pars,int_pars):
         interventions.append(cv.change_beta(days=[start_day], changes=[0.8], layers='w'))
 
     elif int_pars:
-        if int_pars['mask_wearing']:
-            for item in int_pars['mask_wearing']:
-                interv = cv.change_beta(days=item['days'], changes=item['value'], layers=item['layer'])
+        if len(int_pars['c_distance'])!=0:
+            for item in int_pars['c_distance']:
+                interv = cv.change_beta(days=[item['start'], item['end']], changes=[item['value'], 1.0], layers='c')
                 interventions.append(interv)
     sim.update_pars(interventions=interventions)
     for intervention in sim['interventions']:
@@ -332,6 +332,7 @@ def runSim():
     form = request.json
     sim_pars = form.get('sim_pars')
     epi_pars = form.get('epi_pars')
+    int_pars = form.get('int_pars')
     sim = createSim(sim_pars=sim_pars, epi_pars=epi_pars, int_pars=int_pars)
     sim.run()
     return {
